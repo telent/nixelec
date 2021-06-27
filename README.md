@@ -1,6 +1,6 @@
 # Just enough NixOS for Kodi
 
-This is a NixOS configration for an [Odroid
+This is a NixOS configuration for an [Odroid
 C2](https://wiki.odroid.com/odroid-c2/odroid-c2) that turns it into a
 Kodi appliance. It is intended for cross-compilation on a x86-64
 machine, as the device is a bit too underpowered to build its own
@@ -41,10 +41,7 @@ that you can't install it from the NixOS generic aarch64 image without
 some manual steps. This configuration automates that bit: run
 
 ```
-NIX_PATH=nixpkgs=$NIXPKGS_FOR_NIXELEC:nixos-config=`pwd`/configuration.nix \
- nix-build -E 'let pkgs = (import <nixpkgs>) {};
- in (pkgs.pkgsCross.aarch64-multiplatform.nixos <nixos-config>)
- .config.system.build.sdImage'
+NIX_PATH=nixpkgs=$NIXPKGS_FOR_NIXELEC nix-build -A build.sdImage
 ```
 
 and then find the output in
@@ -59,14 +56,13 @@ root user, but it would be as well to check.
 
 Once you have a running Odroid machine, you can update it in place
 without reflashing the whole disk, by executing manually the steps
-that nixos-rebuild would take:
+that nixos-rebuild would take: build the `toplevel` derivation, copy
+it and its closure to the target machine, and run
+`bin/switch-to-configuration`
 
 ```
 # build the system
-NIX_PATH=nixpkgs=$NIXPKGS_FOR_NIXELEC:nixos-config=`pwd`/configuration.nix \
- nix-build -E 'let pkgs = (import <nixpkgs>) {};
- in (pkgs.pkgsCross.aarch64-multiplatform.nixos <nixos-config>)
- .config.system.build.toplevel'
+NIX_PATH=nixpkgs=$NIXPKGS_FOR_NIXELEC nix-build -A build.toplevel
 
 # copy it to the target device
 nix-copy-closure --to root@odroid.lan -v --include-outputs \
