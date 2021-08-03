@@ -1,9 +1,21 @@
+
 # this is Work In Progress configuration.nix for cross-compiling
 # a Kodi appliance based on the Odroid C2
 
 { config, lib, pkgs, ... }:
 
-{
+let
+  advancedsettings_xml = pkgs.writeTextFile {
+    name = "advancedsettings.xml";
+    text = ''
+        <advancedsettings>
+          <audiooutput>
+            <audiodevice>ALSA:kodi</audiodevice>
+          </audiooutput>
+        </advancedsettings>
+    '';
+    };
+in {
   nixpkgs.overlays = [
     (self: super: {
 
@@ -74,6 +86,11 @@
                  lirc = null;
                };
       
+      restoreKodiConfig = pkgs.writeScript "restore-kodi-config.sh" ''
+        #!${self.pkgs.bash}/bin/bash
+        mkdir -p /home/kodi/.kodi/userdata
+        cp ${advancedsettings_xml}  /home/kodi/.kodi/userdata/advancedsettings.xml
+      '';
       # kodi = kodiUnwrapped.passthru.withPackages
       #   (kodiPkgs: with kodiPkgs; [ ]);
 
@@ -175,6 +192,7 @@
     serviceConfig = {
       WorkingDirectory = "/home/kodi";
       User = "kodi";
+      ExecStartPre = "${pkgs.restoreKodiConfig}";
       ExecStart = ''
         ${pkgs.kodi}/bin/kodi  --windowing=gbm
         '';
@@ -183,7 +201,20 @@
 
   # Enable sound.
   sound.enable = true;
-
+  sound.extraConfig = ''
+    pcm.kodi {
+        type plug
+        slave { 
+            pcm "hw:0"
+            rate 44100
+            format S16_LE
+        }
+    }
+    defaults.namehint.showall on
+    defaults.namehint.extended on
+    defaults.pcm.rate_converter "speexrate"
+  '';
+  
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.dan = {
     isNormalUser = true;
