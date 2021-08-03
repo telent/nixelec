@@ -59,21 +59,21 @@
 
       }); in
                k.override {
-        x11Support  = false;
-        dbusSupport  = false;
-        joystickSupport = false;
-        nfsSupport = false;
-        pulseSupport  = false;
-        sambaSupport  = false;
-        udevSupport = false;
-        usbSupport = false;
-        vdpauSupport = false;
-        gbmSupport = true;
-
-        jre_headless = self.buildPackages.adoptopenjdk-openj9-bin-11 ;
-        lirc = null;
-      };
-
+                 x11Support  = false;
+                 dbusSupport  = false;
+                 joystickSupport = false;
+                 nfsSupport = false;
+                 pulseSupport  = false;
+                 sambaSupport  = false;
+                 udevSupport = false;
+                 usbSupport = false;
+                 vdpauSupport = false;
+                 gbmSupport = true;
+                 
+                 jre_headless = self.buildPackages.adoptopenjdk-openj9-bin-11 ;
+                 lirc = null;
+               };
+      
       # kodi = kodiUnwrapped.passthru.withPackages
       #   (kodiPkgs: with kodiPkgs; [ ]);
 
