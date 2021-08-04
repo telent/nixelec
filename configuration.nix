@@ -7,6 +7,13 @@
 let
   secrets = import ./secrets.nix;
   xjson-to-xml = pkgs.buildPackages.callPackage ./xjson-to-xml {};
+  attrsetToXml = roottag : attrs : name : pkgs.stdenv.mkDerivation {
+    inherit name;
+    phases = ["installPhase"];
+    installPhase =
+      let json = pkgs.writeText "${name}.json" (builtins.toJSON attrs);
+      in "${xjson-to-xml}/bin/xjson-to-xml ${roottag} < ${json} > $out";
+  };
   sources =
     let path = p : { "@" = { pathversion = "1"; }; "#" = p; };
         default = { "@" = { "pathversion" = "1"; };};
@@ -27,49 +34,27 @@ let
         source = [(mkSource "music")];
       };
     };
-  # we don't use this
-  scraperSettings = ''
-<settings version="2"><setting id="language" default="true">en-US</setting><setting id="tmdbcertcountry" default="true">us</setting><setting id="usecertprefix" default="true">true</setting><setting id="certprefix" default="true">Rated </setting><setting id="keeporiginaltitle" default="true">false</setting><setting id="cat_landscape" default="true">true</setting><setting id="studio_country" default="true">false</setting><setting id="enab_trailer" default="true">true</setting><setting id="players_opt" default="true">Tubed</setting><setting id="ratings" default="true">TMDb</setting><setting id="imdbanyway" default="true">false</setting><setting id="traktanyway" default="true">false</setting><setting id="tmdbanyway" default="true">true</setting><setting id="enable_fanarttv" default="true">true</setting><setting id="fanarttv_clientkey" default="true" /><setting id="verboselog" default="true">false</setting><setting id="lastUpdated">1628073852.874557</setting><setting id="originalUrl">https://image.tmdb.org/t/p/original</setting><setting id="previewUrl">https://image.tmdb.org/t/p/w780</setting></settings>
-  '';
-  sourcesXml = pkgs.stdenv.mkDerivation {
-    name = "sources.xml";
-    phases = ["installPhase"];
-    installPhase =
-      let json = pkgs.writeText "sources.json" (builtins.toJSON sources);
-      in ''
-        ${xjson-to-xml}/bin/xjson-to-xml sources < ${json} > $out
-      '';
-  };
+
   # perhaps we could automate configuring the source content type using a
   # bit of sql, but we need this to be executed (1) after kodi has created
   # the database and the paths, (2) while kodi is not running
   # in userdata/Database/MyVideos119.db
   # update table path set    strContent ='tvshows', strScraper='metadata.tvshows.themoviedb.org.python',  strSettings=' where strPath='https://example.com/media/tvshows/';
 
-  advancedsettingsXml =
-    let s = {
-          audiooutput= {
-            audiodevice = "ALSA:kodi";
-          };
-          services = {
-            esallinterfaces = "true";
-            webserver = "true";
-            webserverport = "8080";
-            webserverauthentication = "true";
-            webserverusername = secrets.http.username;
-            webserverpassword = secrets.http.password;
-            webserverssl = "false";
-          };
-        };
-    in pkgs.stdenv.mkDerivation {
-      name = "advancedsettings.xml";
-      phases = ["installPhase"];
-      installPhase =
-        let json = pkgs.writeText "advancedsettings.json" (builtins.toJSON s);
-        in ''
-          ${xjson-to-xml}/bin/xjson-to-xml advancedsettings < ${json} > $out
-        '';
+  advancedSettings = {
+    audiooutput= {
+      audiodevice = "ALSA:kodi";
     };
+    services = {
+      esallinterfaces = "true";
+      webserver = "true";
+      webserverport = "8080";
+      webserverauthentication = "true";
+      webserverusername = secrets.http.username;
+      webserverpassword = secrets.http.password;
+      webserverssl = "false";
+    };
+  };
 in {
   nixpkgs.overlays = [
     (self: super: {
@@ -108,12 +93,11 @@ in {
         doCheck = false;
         mesonFlags = ["-Dgobject=disabled"
                       "-Dicu=disabled"
-                       "-Dintrospection=disabled"
+                      "-Dintrospection=disabled"
                      ];
       })).override({gobject-introspection = null;});
 
       kodi = let k = super.kodi.overrideAttrs(o:{
-
         preConfigure = ''
           cmakeFlagsArray+=("-DCORE_PLATFORM_NAME=gbm")
           # Need these tools on the build system when cross compiling,
@@ -144,12 +128,9 @@ in {
       restoreKodiConfig = pkgs.writeScript "restore-kodi-config.sh" ''
         #!${self.pkgs.bash}/bin/bash
         mkdir -p /home/kodi/.kodi/userdata
-        cat ${advancedsettingsXml} > /home/kodi/.kodi/userdata/advancedsettings.xml
-        cat ${sourcesXml} > /home/kodi/.kodi/userdata/sources.xml
+        cat ${attrsetToXml "advancedsettings" advancedSettings "advancedsettings.xml"} > /home/kodi/.kodi/userdata/advancedsettings.xml
+        cat ${attrsetToXml "sources" sources "sources.xml"} > /home/kodi/.kodi/userdata/sources.xml
       '';
-
-      # kodi = kodiUnwrapped.passthru.withPackages
-      #   (kodiPkgs: with kodiPkgs; [ ]);
 
       libcec = super.libcec.overrideAttrs(o:{
         cmakeFlags =  [ "-DHAVE_LINUX_API=1" ];
@@ -298,5 +279,4 @@ in {
     allowedTCPPorts = [ 8080 ];
     allowedUDPPorts = [ 8080 ];
   };
-
 }
