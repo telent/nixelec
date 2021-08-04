@@ -250,7 +250,7 @@ in {
   sound.extraConfig = ''
     pcm.kodi {
         type plug
-        slave { 
+        slave {
             pcm "hw:0"
             rate 44100
             format S16_LE
@@ -260,7 +260,7 @@ in {
     defaults.namehint.extended on
     defaults.pcm.rate_converter "speexrate"
   '';
-  
+
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.dan = {
     isNormalUser = true;
