@@ -5,15 +5,61 @@
 { config, lib, pkgs, ... }:
 
 let
-  advancedsettings_xml = pkgs.writeTextFile {
-    name = "advancedsettings.xml";
-    text = ''
-        <advancedsettings>
-          <audiooutput>
-            <audiodevice>ALSA:kodi</audiodevice>
-          </audiooutput>
-        </advancedsettings>
-    '';
+  mediaSource = import ./mediasource.nix;
+  xjson-to-xml = pkgs.buildPackages.callPackage ./xjson-to-xml {};
+  sources =
+    let path = p : { "@" = { pathversion = "1"; }; "#" = p; };
+        default = { "@" = { "pathversion" = "1"; };};
+        mkSource = folder: {
+          name = folder;
+          path = path "${mediaSource.url}/${folder}/";
+          allowsharing = "true";
+        };
+    in {
+      video = {
+        inherit default;
+        source = [(mkSource "tvshows")
+                  (mkSource "video")
+                  (mkSource "movies")];
+      };
+      music = {
+        inherit default;
+        source = [(mkSource "music")];
+      };
+    };
+  # we don't use this
+  scraperSettings = ''
+<settings version="2"><setting id="language" default="true">en-US</setting><setting id="tmdbcertcountry" default="true">us</setting><setting id="usecertprefix" default="true">true</setting><setting id="certprefix" default="true">Rated </setting><setting id="keeporiginaltitle" default="true">false</setting><setting id="cat_landscape" default="true">true</setting><setting id="studio_country" default="true">false</setting><setting id="enab_trailer" default="true">true</setting><setting id="players_opt" default="true">Tubed</setting><setting id="ratings" default="true">TMDb</setting><setting id="imdbanyway" default="true">false</setting><setting id="traktanyway" default="true">false</setting><setting id="tmdbanyway" default="true">true</setting><setting id="enable_fanarttv" default="true">true</setting><setting id="fanarttv_clientkey" default="true" /><setting id="verboselog" default="true">false</setting><setting id="lastUpdated">1628073852.874557</setting><setting id="originalUrl">https://image.tmdb.org/t/p/original</setting><setting id="previewUrl">https://image.tmdb.org/t/p/w780</setting></settings>
+  '';
+  sourcesXml = pkgs.stdenv.mkDerivation {
+    name = "sources.xml";
+    phases = ["installPhase"];
+    installPhase =
+      let json = pkgs.writeText "sources.json" (builtins.toJSON sources);
+      in ''
+        ${xjson-to-xml}/bin/xjson-to-xml sources < ${json} > $out
+      '';
+  };
+  # perhaps we could automate configuring the source content type using a
+  # bit of sql, but we need this to be executed (1) after kodi has created
+  # the database and the paths, (2) while kodi is not running
+  # in userdata/Database/MyVideos119.db
+  # update table path set    strContent ='tvshows', strScraper='metadata.tvshows.themoviedb.org.python',  strSettings=' where strPath='https://example.com/media/tvshows/';
+
+  advancedsettingsXml =
+    let s = {
+          audiooutput= {
+            audiodevice = "ALSA:kodi";
+          };
+        };
+    in pkgs.stdenv.mkDerivation {
+      name = "advancedsettings.xml";
+      phases = ["installPhase"];
+      installPhase =
+        let json = pkgs.writeText "advancedsettings.json" (builtins.toJSON s);
+        in ''
+          ${xjson-to-xml}/bin/xjson-to-xml advancedsettings < ${json} > $out
+        '';
     };
 in {
   nixpkgs.overlays = [
@@ -81,16 +127,18 @@ in {
                  usbSupport = false;
                  vdpauSupport = false;
                  gbmSupport = true;
-                 
+
                  jre_headless = self.buildPackages.adoptopenjdk-openj9-bin-11 ;
                  lirc = null;
                };
-      
+
       restoreKodiConfig = pkgs.writeScript "restore-kodi-config.sh" ''
         #!${self.pkgs.bash}/bin/bash
         mkdir -p /home/kodi/.kodi/userdata
-        cp ${advancedsettings_xml}  /home/kodi/.kodi/userdata/advancedsettings.xml
+        cat ${advancedsettingsXml} > /home/kodi/.kodi/userdata/advancedsettings.xml
+        cat ${sourcesXml} > /home/kodi/.kodi/userdata/sources.xml
       '';
+
       # kodi = kodiUnwrapped.passthru.withPackages
       #   (kodiPkgs: with kodiPkgs; [ ]);
 
@@ -173,8 +221,6 @@ in {
     enable = true;
     configurationLimit = 0;
   };
-
-  boot.blacklistedKernelModules = [ "meson_gxbb_wdt" ] ;
 
   # override systemd core file processing, which grinds the box to a
   # halt (load av > 11)
