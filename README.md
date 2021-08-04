@@ -10,14 +10,23 @@ The NixOS install is based on the description in the [NixOS
 Wiki](https://nixos.wiki/wiki/NixOS_on_ARM/ODROID-C2) but a bit more
 automated.
 
-## Status: WIP
+## What does it do
 
-* it boots, it starts Kodi and it plays video fast enough to keep up
-* audio does not work well - it's slightly too fast and it glitches. I
-  think it is sending  44.1kHz PCM to a 48kHz without resampling.
-* configuration of Kodi itself is all done through the UI, which I do not prefer. Would like to specify sources etc declaratively through Nix
+* it boots, it starts Kodi, it plays videos
+* audio has been kludged a bit to make 44.1kHz rates work, and might not work at other rates
 * it hangs when I ask it to reboot
 * various cross-compile fixes need to be pushed upstream
+
+My media is stored elsewhere and accessed over a password-protected
+HTTP server. If yours is similar, copy `secrets.nix-example` to
+`secrets.nix`, and edit that and `configuration.nix` to specify your
+sources and passwords and stuff. If not, you'll need to edit more
+extensively.
+
+Once you have built everything and booted the system, you will have to
+['set content'](https://kodi.wiki/view/Adding_video_sources#Set_Content)
+interactively for each source before it can be scanned. This is not
+easily automatable, sadly.
 
 ## Nixpkgs pinning
 

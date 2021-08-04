@@ -5,14 +5,14 @@
 { config, lib, pkgs, ... }:
 
 let
-  mediaSource = import ./mediasource.nix;
+  secrets = import ./secrets.nix;
   xjson-to-xml = pkgs.buildPackages.callPackage ./xjson-to-xml {};
   sources =
     let path = p : { "@" = { pathversion = "1"; }; "#" = p; };
         default = { "@" = { "pathversion" = "1"; };};
         mkSource = folder: {
           name = folder;
-          path = path "${mediaSource.url}/${folder}/";
+          path = path "${secrets.mediasource.url}/${folder}/";
           allowsharing = "true";
         };
     in {
@@ -50,6 +50,15 @@ let
     let s = {
           audiooutput= {
             audiodevice = "ALSA:kodi";
+          };
+          services = {
+            esallinterfaces = "true";
+            webserver = "true";
+            webserverport = "8080";
+            webserverauthentication = "true";
+            webserverusername = secrets.http.username;
+            webserverpassword = secrets.http.password;
+            webserverssl = "false";
           };
         };
     in pkgs.stdenv.mkDerivation {
